@@ -1,3 +1,5 @@
+require 'net/http'
+
 module Rack
   class Tumblargh
 
@@ -20,8 +22,20 @@ module Rack
       end
 
       status, headers, response = @app.call(env)
+      prerendered = false
 
-      if should_parse?(status, headers)
+      [%r{/page.*}].each do |route|
+        if request.path.match route
+          uri = URI("http://#{@options[:blog]}#{request.path}?#{request.query_string}")
+          prerendered = true
+          status = 200
+          headers.delete('Content-Length')
+          headers["Content-Type"] = "text/html"
+          response = [Net::HTTP.get(uri)]
+        end
+      end
+
+      if should_parse?(status, headers) && !prerendered
         content = response.respond_to?(:body) ? response.body : response
         render_opts = { :permalink => permalink?(env['PATH_INFO']) }
 
